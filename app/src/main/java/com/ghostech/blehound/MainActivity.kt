@@ -32,6 +32,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
 import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
@@ -191,7 +192,13 @@ class MainActivity : Activity() {
     fun getAnimationTick(): Int = animationTick
 
     private lateinit var statusView: TextView
+    private lateinit var headerPanel: LinearLayout
+    private lateinit var flameTitleView: TextView
     private lateinit var counterView: TextView
+    private lateinit var trackerChip: TextView
+    private lateinit var gadgetChip: TextView
+    private lateinit var droneChip: TextView
+    private lateinit var federalChip: TextView
     private lateinit var startButton: Button
     private lateinit var stopButton: Button
     private lateinit var vibrateButton: Button
@@ -256,6 +263,7 @@ class MainActivity : Activity() {
             if (isAlertCategory(cls)) notifyDeviceDetected()
         }
         if (!BleStore.isListFrozen) uiDirty = true
+        updateHeaderCounts()
     }
 
     // ---------------------------------------------------------------
@@ -265,10 +273,12 @@ class MainActivity : Activity() {
     private val uiRefreshRunnable = object : Runnable {
         override fun run() {
             if (uiDirty && !BleStore.isListFrozen) {
-                renderDeviceList()
+                updateHeaderCounts()
+        renderDeviceList()
                 uiDirty = false
             }
-            animationTick = (animationTick + 1) % 2
+            animationTick = (animationTick + 1) % 4
+            updateFlameHeader()
             if (!BleStore.isListFrozen) adapter.notifyDataSetChanged()
 
             // Continuous drone beep
@@ -336,8 +346,9 @@ class MainActivity : Activity() {
             setBackgroundColor(0xFF000000.toInt())
         }
 
-        val headerPanel = LinearLayout(this).apply {
+        headerPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
             setPadding(dp(18), dp(24), dp(18), dp(14))
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
@@ -345,41 +356,96 @@ class MainActivity : Activity() {
             ).apply { setStroke(dp(1), 0xFFFF2200.toInt()) }
         }
 
-        val titleView = TextView(this).apply {
+        flameTitleView = TextView(this).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            textAlignment = android.view.View.TEXT_ALIGNMENT_CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
             text = "BLE HOUND"
             gravity = Gravity.CENTER
-            textSize = 22f
+            textSize = 26f
             typeface = Typeface.create("sans-serif-black", Typeface.BOLD_ITALIC)
-            setTextColor(0xFFFF2233.toInt())
-            setShadowLayer(14f, 0f, 0f, 0xFFFF7700.toInt())
+            setTextColor(0xFFFF5A1F.toInt())
+            setShadowLayer(22f, 0f, 0f, 0xFFFF1E00.toInt())
             letterSpacing = 0.12f
             setPadding(0, 0, 0, dp(6))
         }
 
         statusView = TextView(this).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            textAlignment = android.view.View.TEXT_ALIGNMENT_CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
             text = "TAP ANY DEVICE ROW TO VIEW DETAILS"
             gravity = Gravity.CENTER
-            textSize = 10f
-            typeface = Typeface.MONOSPACE
+            textSize = 14f
+            typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
             setTextColor(0xFFFF4444.toInt())
             setPadding(0, 0, 0, dp(4))
         }
 
         counterView = TextView(this).apply {
-            text = buildCounterText(0, 0, 0, 0, 0)
-            gravity = Gravity.CENTER
-            textSize = 10f
-            typeface = Typeface.MONOSPACE
+            visibility = View.GONE
+        }
+
+        trackerChip = buildCounterChip("TRACKERS: 0", 0xFFFFFF66.toInt(), 0x55B8A800)
+        gadgetChip = buildCounterChip("GADGETS: 0", 0xFFFFB366.toInt(), 0x55A84A00)
+        droneChip = buildCounterChip("DRONES: 0", 0xFFD6B3FF.toInt(), 0x554B1E88)
+        federalChip = buildCounterChip("FEDS: 0", 0xFF8DB8FF.toInt(), 0x55163E8A)
+
+        val chipRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
             setPadding(0, 0, 0, dp(10))
         }
+
+        chipRow.addView(trackerChip, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(4) })
+        chipRow.addView(gadgetChip, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(1); marginEnd = dp(3) })
+        chipRow.addView(droneChip, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(2); marginEnd = dp(2) })
+        chipRow.addView(federalChip, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(3) })
 
         vibrator = getSystemService(Vibrator::class.java)
         wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
         toneGenerator = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 100)
 
-        val buttonBar = LinearLayout(this).apply {
+        val headerShell = FrameLayout(this)
+
+        val headerTopRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
+        }
+
+        val titleHolder = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+        }
+
+        val settingsButton = TextView(this).apply {
+            text = "⚙"
+            textSize = 22f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(0xFFFF5533.toInt())
+            setPadding(0, 0, 0, 0)
+            setOnClickListener {
+                startActivity(Intent(this@MainActivity, SettingsActivity::class.java))
+            }
+        }
+
+        val buttonBar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
             setPadding(0, 0, 0, dp(4))
         }
 
@@ -406,10 +472,29 @@ class MainActivity : Activity() {
         buttonBar.addView(vibrateButton, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(2); marginEnd = dp(2) })
         buttonBar.addView(soundButton, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(4) })
 
-        headerPanel.addView(titleView)
+        headerPanel.addView(flameTitleView)
         headerPanel.addView(statusView)
-        headerPanel.addView(counterView)
+        headerPanel.addView(chipRow)
         headerPanel.addView(buttonBar)
+
+        headerShell.addView(
+            headerPanel,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
+        headerShell.addView(
+            settingsButton,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP or Gravity.END
+            ).apply {
+                topMargin = -dp(2)
+                marginEnd = dp(4)
+            }
+        )
 
         adapter = DeviceListAdapter(this) { device -> openDetail(device.address) }
 
@@ -420,11 +505,13 @@ class MainActivity : Activity() {
         }
         listView.adapter = adapter
 
-        root.addView(headerPanel)
+        root.addView(headerShell)
         root.addView(buildTableHeader())
         root.addView(listView, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
 
         setContentView(root)
+        updateFlameHeader()
+        ensureBackgroundMonitorState()
 
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED ||
             ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED ||
@@ -483,6 +570,102 @@ class MainActivity : Activity() {
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
+    private fun updateFlameHeader() {
+        val tick = animationTick % 4
+
+        val titleColor = when (tick) {
+            0 -> 0xFFFF5A1F.toInt()
+            1 -> 0xFFFF7A1F.toInt()
+            2 -> 0xFFFFB347.toInt()
+            else -> 0xFFFF3B1F.toInt()
+        }
+
+        val glowColor = when (tick) {
+            0 -> 0xAAFF2200.toInt()
+            1 -> 0xAAFF6600.toInt()
+            2 -> 0xAAFFAA00.toInt()
+            else -> 0xAAFF3300.toInt()
+        }
+
+        val topColor = when (tick) {
+            0 -> 0xFF220000.toInt()
+            1 -> 0xFF2A0000.toInt()
+            2 -> 0xFF300800.toInt()
+            else -> 0xFF1A0000.toInt()
+        }
+
+        val midColor = when (tick) {
+            0 -> 0xFF110000.toInt()
+            1 -> 0xFF160000.toInt()
+            2 -> 0xFF1F0500.toInt()
+            else -> 0xFF100000.toInt()
+        }
+
+        flameTitleView.setTextColor(titleColor)
+        flameTitleView.setShadowLayer(18f, 0f, 0f, glowColor)
+
+        headerPanel.background = GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(topColor, midColor, 0xFF000000.toInt())
+        ).apply {
+            setStroke(dp(1), 0xFFFF2200.toInt())
+        }
+    }
+
+
+    private fun updateHeaderCounts() {
+        var trackerCount = 0
+        var gadgetCount = 0
+        var droneCount = 0
+        var federalCount = 0
+
+        for (d in BleStore.devices.values) {
+            val c = classifyDevice(d)
+            when {
+                isTrackerClass(c) -> trackerCount++
+                isCyberGadgetClass(c) -> gadgetCount++
+                isDroneClass(c) -> droneCount++
+                isPoliceClass(c) -> federalCount++
+            }
+        }
+
+        if (::trackerChip.isInitialized) trackerChip.text = "TRACKERS: $trackerCount"
+        if (::gadgetChip.isInitialized) gadgetChip.text = "GADGETS: $gadgetCount"
+        if (::droneChip.isInitialized) droneChip.text = "DRONES: $droneCount"
+        if (::federalChip.isInitialized) federalChip.text = "FEDS: $federalCount"
+    }
+
+
+    private fun buildCounterChip(text: String, textColor: Int, fillColor: Int): TextView {
+        return TextView(this).apply {
+            this.text = text
+            gravity = Gravity.CENTER
+            textAlignment = android.view.View.TEXT_ALIGNMENT_CENTER
+            textSize = 13f
+            typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+            setTextColor(textColor)
+            setPadding(dp(4), dp(6), dp(4), dp(6))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(6).toFloat()
+                setColor(fillColor)
+            }
+        }
+    }
+
+
+    private fun ensureBackgroundMonitorState() {
+        val prefs = getSharedPreferences("blehound_prefs", MODE_PRIVATE)
+        if (!prefs.getBoolean("background_enabled", false)) return
+
+        val intent = Intent(this, BleMonitorService::class.java)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
+    }
+
     private fun buildHellButton(label: String): Button {
         return Button(this).apply {
             text = label
@@ -503,22 +686,32 @@ class MainActivity : Activity() {
 
     private fun buildCounterText(tracker: Int, gadget: Int, drone: Int, federal: Int, other: Int): android.text.SpannableStringBuilder {
         val sb = android.text.SpannableStringBuilder()
-        fun colored(text: String, color: Int) {
-            val s = sb.length
+
+        fun addPill(text: String, fg: Int, bg: Int) {
+            val start = sb.length
+            sb.append(" ")
+            val textStart = sb.length
             sb.append(text)
-            sb.setSpan(android.text.style.ForegroundColorSpan(color), s, sb.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            val textEnd = sb.length
+            sb.append("    ")
+
+            sb.setSpan(android.text.style.ForegroundColorSpan(fg), textStart, textEnd, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            sb.setSpan(android.text.style.BackgroundColorSpan(bg), textStart, textEnd, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            sb.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), textStart, textEnd, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
-        colored("[ TRACKER ]=$tracker  ", 0xFFFFFF00.toInt())
-        colored("[ GADGET ]=$gadget  ", 0xFFFF8800.toInt())
-        colored("[ DRONE ]=$drone  ", 0xFF8A2BE2.toInt())
-        colored("[ FEDERAL ]=$federal", 0xFF3F7BFF.toInt())
+
+        addPill("TRACKERS: $tracker", 0xFFFFFF66.toInt(), 0x55B8A800)
+        addPill("GADGETS: $gadget", 0xFFFFB366.toInt(), 0x55A84A00)
+        addPill("DRONES: $drone", 0xFFD6B3FF.toInt(), 0x554B1E88)
+        addPill("FEDS: $federal", 0xFF8DB8FF.toInt(), 0x55163E8A)
+
         return sb
     }
 
     private fun buildHeaderCell(text: String, weight: Float): TextView {
         return TextView(this).apply {
             this.text = text
-            typeface = Typeface.MONOSPACE
+            typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
             textSize = 11f
             setTextColor(0xFF80FF80.toInt())
             gravity = Gravity.START or Gravity.CENTER_VERTICAL
@@ -742,6 +935,7 @@ class MainActivity : Activity() {
             }
 
             if (!BleStore.isListFrozen) uiDirty = true
+            updateHeaderCounts()
         }
     }
 
@@ -767,9 +961,8 @@ class MainActivity : Activity() {
         }
         BleStore.dronePresent = droneCount > 0
 
+        updateHeaderCounts()
         statusView.text = "TAP ANY DEVICE ROW TO VIEW DETAILS"
-        counterView.text = buildCounterText(trackerCount, gadgetCount, droneCount, federalCount, otherCount)
-
         adapter.replaceData(sorted.take(250))
         updateButtonStates()
     }
@@ -872,7 +1065,7 @@ class DeviceListAdapter(
     private fun buildCell(text: String, weight: Float): TextView {
         return TextView(activity).apply {
             this.text = text
-            typeface = Typeface.MONOSPACE
+            typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
             textSize = 11f
             setTextColor(0xFFFFFFFF.toInt())
             setPadding(dp(4), dp(8), dp(4), dp(8))
@@ -927,36 +1120,24 @@ class DeviceListAdapter(
         topRow.addView(buildCell(item.address, 3.0f))
         topRow.addView(buildCell(clippedMfg, 1.3f))
 
-        val classView = if (isTracker || isCyber || isDrone || isPolice) {
-            val bracketText = when {
-                isTracker -> "[ TRACKER ]"
-                isCyber   -> "[ GADGET ]"
-                isDrone   -> "[ DRONE ]"
-                isPolice  -> "[ FEDERAL ]"
-                else      -> classText
-            }
-            val textColor = when {
-                isTracker -> 0xFFFF8800.toInt()
-                isCyber   -> 0xFFFF8800.toInt()
-                isDrone   -> 0xFF8A2BE2.toInt()                               // solid violet
-                isPolice  -> if (tick == 0) 0xFFFF0000.toInt() else 0xFF0000FF.toInt()
-                else      -> 0xFFFFFFFF.toInt()
-            }
-            OutlinedTextView(activity).apply {
-                text = bracketText
-                typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
-                textSize = 11f
-                setTextColor(textColor)
-                strokeColor = 0xFF000000.toInt()
-                strokeWidthPx = dp(1).toFloat() + 1f
-                setPadding(dp(4), dp(8), dp(4), dp(8))
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.9f)
-                isSingleLine = true
-                ellipsize = TextUtils.TruncateAt.END
-                gravity = Gravity.START or Gravity.CENTER_VERTICAL
-            }
-        } else {
-            buildCell(classText, 1.9f)
+        val classColor = when (classText) {
+            "AirTag", "Tile", "Galaxy Tag", "Find My" -> 0xFFFFFF00.toInt()
+            "Flipper Zero", "Pwnagotchi", "Card Skimmer", "Dev Board", "WiFi Pineapple" -> 0xFFFF8800.toInt()
+            "Drone" -> 0xFF8A2BE2.toInt()
+            "Axon", "Flock" -> if (tick == 0) 0xFFFF0000.toInt() else 0xFF0000FF.toInt()
+            else -> 0xFFFFFFFF.toInt()
+        }
+
+        val classView = TextView(activity).apply {
+            text = classText
+            typeface = Typeface.MONOSPACE
+            textSize = 11f
+            setTextColor(classColor)
+            setPadding(dp(4), dp(8), dp(4), dp(8))
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.9f)
+            isSingleLine = true
+            ellipsize = TextUtils.TruncateAt.END
+            gravity = Gravity.START or Gravity.CENTER_VERTICAL
         }
 
         topRow.addView(classView)
@@ -965,7 +1146,7 @@ class DeviceListAdapter(
             text = android.text.SpannableString("NAME: $clippedName").apply {
                 setSpan(android.text.style.ForegroundColorSpan(0xFF80FF80.toInt()), 0, 5, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
             }
-            typeface = Typeface.MONOSPACE
+            typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
             textSize = 11f
             setTextColor(0xFFF2F2F2.toInt())
             setPadding(dp(10), dp(6), dp(10), dp(8))

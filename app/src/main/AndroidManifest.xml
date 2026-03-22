@@ -11,6 +11,9 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
 
     <application
         android:allowBackup="true"
@@ -25,6 +28,10 @@
             android:exported="false" />
 
         <activity
+            android:name=".SettingsActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
@@ -33,5 +40,6 @@
             </intent-filter>
         </activity>
 
+            <service android:name=".BleMonitorService" android:exported="false" android:foregroundServiceType="connectedDevice" />
     </application>
 </manifest>
