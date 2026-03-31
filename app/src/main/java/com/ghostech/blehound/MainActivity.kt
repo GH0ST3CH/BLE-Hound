@@ -136,8 +136,17 @@ fun isLikelyWifiDrone(ssid: String): Boolean {
             ssid.contains("uas") ||
             ssid.contains("remoteid") ||
             ssid.contains("remote-id") ||
-            ssid.contains("opendroneid")
+            ssid.contains("opendroneid") ||
+            ssid.contains("rid") ||
+            ssid.contains("uas-") ||
+            ssid.contains("uas_")
 }
+
+fun hasNyanboxBleRemoteIdSignature(d: BleSeenDevice): Boolean {
+    val raw = d.rawAdvText.uppercase().replace(" ", "")
+    return raw.contains("16FAFF0D")
+}
+
 
 fun classifyDevice(d: BleSeenDevice): String {
     val name = d.name.lowercase()
@@ -204,14 +213,32 @@ fun classifyDevice(d: BleSeenDevice): String {
         return "Card Skimmer"
     }
 
-    // Drone (Remote ID / known manufacturers)
-    if (isExactBleDrone(d) || "DJI" in name || "PARROT" in name || "SKYDIO" in name || "AUTEL" in name) {
+    // Drone (nyanBOX-style Android port)
+    val droneNameMatch =
+        "DJI" in name || "PARROT" in name || "SKYDIO" in name ||
+        "AUTEL" in name || "ANAFI" in name || mfg == "DJI"
+
+    val droneBleRemoteIdMatch =
+        hasNyanboxBleRemoteIdSignature(d)
+
+    val droneCoordsPresent =
+        d.droneLat != null && d.droneLon != null
+
+    if (droneCoordsPresent || droneBleRemoteIdMatch || droneNameMatch) {
         return "Drone"
     }
 
-    // Axon (law enforcement body cameras)
-    if (macPrefix == "00:25:df" || "AXON" in name) {
-        return "Axon"
+    // Axon (nyanBOX-style Android port)
+    val axonMacMatch = macPrefix == "00:25:df"
+    val axonMfgMatch = mfg == "AXON"
+    val axonNameMatch = "AXON" in name || "TASER" in name
+
+    if (axonMacMatch || axonMfgMatch || axonNameMatch) {
+        return when {
+            "TASER" in name -> "Axon Taser"
+            "CAM" in name || "BODY" in name || "BODYCAM" in name || "CAMERA" in name -> "Axon Cam"
+            else -> "Axon Device"
+        }
     }
 
     // Flock / ALPR systems
@@ -356,7 +383,8 @@ fun assessSkimmer(d: BleSeenDevice): SkimmerAssessment {
 
 fun isCyberGadgetClass(c: String) = c == "Flipper Zero" || c == "Pwnagotchi" || c == "Card Skimmer" || c == "Dev Board" || c == "WiFi Pineapple"
 fun isDroneClass(c: String) = c == "Drone"
-fun isPoliceClass(c: String) = c == "Axon" || c == "Flock"
+fun isPoliceClass(c: String) =
+    c == "Axon Device" || c == "Axon Cam" || c == "Axon Taser" || c == "Flock"
 fun isTrackerClass(c: String) = c == "AirTag" || c == "Tile" || c == "Galaxy Tag" || c == "Find My"
 fun isAlertCategory(c: String) = isTrackerClass(c) || isCyberGadgetClass(c) || isDroneClass(c) || isPoliceClass(c)
 
@@ -1347,7 +1375,9 @@ class MainActivity : Activity() {
             ids.contains(0x0075) -> "SAMSNG"
             ids.contains(0x00E0) -> "GOOGL"
             ids.contains(0x00D2) -> "NRDIC"
+            ids.contains(0x08AA) -> "DJI"
             ids.contains(0x09C8) -> "XUNTONG"
+            ids.contains(0xFC81) -> "AXON"
             else -> String.format("%04X", ids.first())
         }
     }
@@ -1544,7 +1574,8 @@ class DeviceListAdapter(
             "AirTag", "Tile", "Galaxy Tag", "Find My" -> 0xFFFFFF00.toInt()
             "Flipper Zero", "Pwnagotchi", "Card Skimmer", "Dev Board", "WiFi Pineapple" -> 0xFFFF8800.toInt()
             "Drone" -> 0xFF8A2BE2.toInt()
-            "Axon", "Flock" -> if (tick == 0) 0xFFFF0000.toInt() else 0xFF0000FF.toInt()
+            "Axon Device", "Axon Cam", "Axon Taser", "Flock" ->
+                if (tick == 0) 0xFFFF0000.toInt() else 0xFF0000FF.toInt()
             else -> 0xFFFFFFFF.toInt()
         }
 
