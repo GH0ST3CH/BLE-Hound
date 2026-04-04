@@ -37,6 +37,14 @@
             android:exported="false" />
 
         <activity
+            android:name=".BackgroundMonitoringActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".PopupSelectActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".NotificationsActivity"
             android:exported="false" />
 

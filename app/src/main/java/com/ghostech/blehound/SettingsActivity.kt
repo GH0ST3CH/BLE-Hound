@@ -64,7 +64,9 @@ class SettingsActivity : Activity() {
         }
 
         bgButton = buildHellButton("")
-        bgButton.setOnClickListener { toggleBackground() }
+        bgButton.setOnClickListener {
+            startActivity(Intent(this, BackgroundMonitoringActivity::class.java))
+        }
         content.addView(bgButton)
 
         filteredModeButton = buildHellButton("")
@@ -189,7 +191,7 @@ class SettingsActivity : Activity() {
     }
 
     private fun refreshButtons() {
-        bgButton.text = if (prefs.getBoolean("background_enabled", false)) "BACKGROUND MONITORING: ON" else "BACKGROUND MONITORING: OFF"
+        bgButton.text = "BACKGROUND MONITORING"
         filteredModeButton.text = if (prefs.getBoolean("filtered_mode", true)) "FILTERED MODE: ON" else "FILTERED MODE: OFF"
     }
 
