@@ -79,13 +79,14 @@ class BackgroundMonitoringActivity : Activity() {
         content.addView(bodyText("Background Monitoring must be ON for pop-ups to work. Pop-ups can show the detected device type, MAC address, name, manufacturer, and live RSSI."))
 
         content.addView(sectionTitle("POP-UP SOUND"))
-        content.addView(bodyText("Pop-up sound follows the sound selected for that category in Notifications."))
+        content.addView(bodyText("Pop-up sound follows the sound selected for that category in Notifications. Blacklist pop-ups use the BLACKLIST sound in Notifications."))
 
         content.addView(sectionTitle("CATEGORY GUIDE"))
         content.addView(bodyText("Trackers: AirTag, Tile, Galaxy Tag, Find My"))
         content.addView(bodyText("Gadgets: Flipper Zero, Pwnagotchi, Card Skimmer, WiFi Pineapple, Meta Glasses, Dev Board"))
         content.addView(bodyText("Drones: Drone"))
         content.addView(bodyText("Feds: Axon Device, Axon Cam, Axon Taser, Flock"))
+        content.addView(bodyText("Blacklist: Uses the BLACKLIST sound in Notifications"))
 
         val scroll = ScrollView(this).apply { addView(content) }
 

@@ -406,6 +406,106 @@ fun assessSkimmer(d: BleSeenDevice): SkimmerAssessment {
     }
 }
 
+const val RULE_WHITELIST = "whitelist_rules"
+const val RULE_BLACKLIST = "blacklist_rules"
+
+fun rulePrefs(context: Context) =
+    context.getSharedPreferences("blehound_rules", Context.MODE_PRIVATE)
+
+fun ruleSet(context: Context, key: String): MutableSet<String> =
+    rulePrefs(context).getStringSet(key, emptySet())?.toMutableSet() ?: mutableSetOf()
+
+
+
+private fun cleanSigPart(s: String, max: Int = 80): String =
+    s.uppercase().replace("\n", " ").replace("\r", " ").trim().take(max)
+
+private fun buildHighValueSignature(d: BleSeenDevice): String {
+    val cls = classifyDevice(d)
+    return listOf(
+        if (d.isWifi) "WIFI" else "BLE",
+        cleanSigPart(cls, 40),
+        cleanSigPart(d.manufacturerText, 40),
+        cleanSigPart(d.manufacturerDataText, 80),
+        cleanSigPart(d.serviceUuidsText, 80),
+        cleanSigPart(d.serviceDataText, 80),
+        cleanSigPart(d.appearanceText, 40),
+        cleanSigPart(d.rawAdvText, 120)
+    ).joinToString("||")
+}
+
+
+
+private fun ruleEntry(sig: String, mac: String): String =
+    "SIG::$sig##MAC::" + mac.uppercase()
+
+private fun ruleSig(entry: String): String =
+    entry.substringAfter("SIG::", "").substringBefore("##MAC::")
+
+private fun ruleMac(entry: String): String =
+    entry.substringAfter("##MAC::", "").uppercase()
+
+
+
+private fun findRuleMatch(context: Context, key: String, d: BleSeenDevice?, mac: String): String? {
+    val rules = ruleSet(context, key)
+    val macNorm = mac.uppercase()
+    val sig = d?.let { buildHighValueSignature(it) }
+
+    if (sig != null) {
+        val bySig = rules.firstOrNull { ruleSig(it) == sig }
+        if (bySig != null) return bySig
+    }
+
+    return rules.firstOrNull { ruleMac(it) == macNorm || it.uppercase() == macNorm }
+}
+
+fun saveRuleSet(context: Context, key: String, rules: Set<String>) {
+    rulePrefs(context).edit().putStringSet(key, rules).apply()
+}
+
+fun isDeviceWhitelisted(context: Context, mac: String): Boolean =
+    findRuleMatch(context, RULE_WHITELIST, BleStore.devices[mac], mac) != null
+
+fun isDeviceBlacklisted(context: Context, mac: String): Boolean =
+    findRuleMatch(context, RULE_BLACKLIST, BleStore.devices[mac], mac) != null
+
+fun toggleWhitelist(context: Context, mac: String) {
+    val wl = ruleSet(context, RULE_WHITELIST)
+    val bl = ruleSet(context, RULE_BLACKLIST)
+    val d = BleStore.devices[mac]
+    val existing = findRuleMatch(context, RULE_WHITELIST, d, mac)
+
+    if (existing != null) {
+        wl.remove(existing)
+    } else {
+        val sig = d?.let { buildHighValueSignature(it) } ?: ""
+        wl.add(ruleEntry(sig, mac))
+        findRuleMatch(context, RULE_BLACKLIST, d, mac)?.let { bl.remove(it) }
+    }
+
+    saveRuleSet(context, RULE_WHITELIST, wl)
+    saveRuleSet(context, RULE_BLACKLIST, bl)
+}
+
+fun toggleBlacklist(context: Context, mac: String) {
+    val wl = ruleSet(context, RULE_WHITELIST)
+    val bl = ruleSet(context, RULE_BLACKLIST)
+    val d = BleStore.devices[mac]
+    val existing = findRuleMatch(context, RULE_BLACKLIST, d, mac)
+
+    if (existing != null) {
+        bl.remove(existing)
+    } else {
+        val sig = d?.let { buildHighValueSignature(it) } ?: ""
+        bl.add(ruleEntry(sig, mac))
+        findRuleMatch(context, RULE_WHITELIST, d, mac)?.let { wl.remove(it) }
+    }
+
+    saveRuleSet(context, RULE_BLACKLIST, bl)
+    saveRuleSet(context, RULE_WHITELIST, wl)
+}
+
 // ---------------------------------------------------------------------------
 // Category helpers
 // ---------------------------------------------------------------------------
@@ -464,6 +564,7 @@ class MainActivity : Activity() {
     private var vibrator: Vibrator? = null
     private var toneGenerator: ToneGenerator? = null
     private var wifiManager: WifiManager? = null
+    private var wifiReceiverRegistered = false
     private var isScannerActive = false
     private var sessionRunning = false
     private var filteredModeEnabled = true
@@ -486,6 +587,7 @@ class MainActivity : Activity() {
 
     @Suppress("MissingPermission")
     private fun processWifiResults() {
+        if (!BleStore.shouldScan || !sessionRunning) return
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return
         val results = wifiManager?.scanResults ?: return
         val now = System.currentTimeMillis()
@@ -838,7 +940,7 @@ class MainActivity : Activity() {
             initBle()
         }
 
-        registerReceiver(wifiScanReceiver, IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION))
+        registerWifiReceiverIfNeeded()
         uiHandler.post(uiRefreshRunnable)
         uiHandler.post(scanWatchdogRunnable)
         updateButtonStates()
@@ -863,7 +965,7 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         BleStore.shouldScan = isScannerActive
         super.onDestroy()
-        try { unregisterReceiver(wifiScanReceiver) } catch (_: Exception) {}
+        unregisterWifiReceiverIfNeeded()
         uiHandler.removeCallbacks(uiRefreshRunnable)
         uiHandler.removeCallbacks(scanWatchdogRunnable)
         hardStopScanner()
@@ -886,6 +988,18 @@ class MainActivity : Activity() {
     // ---------------------------------------------------------------
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    private fun registerWifiReceiverIfNeeded() {
+        if (wifiReceiverRegistered) return
+        registerReceiver(wifiScanReceiver, IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION))
+        wifiReceiverRegistered = true
+    }
+
+    private fun unregisterWifiReceiverIfNeeded() {
+        if (!wifiReceiverRegistered) return
+        try { unregisterReceiver(wifiScanReceiver) } catch (_: Exception) {}
+        wifiReceiverRegistered = false
+    }
 
     private fun loadFilterModePreference() {
         filteredModeEnabled = getSharedPreferences("blehound_prefs", MODE_PRIVATE).getBoolean("filtered_mode", true)
@@ -1242,6 +1356,7 @@ class MainActivity : Activity() {
         scanner = adapter.bluetoothLeScanner
         syncSessionState()
         if (BleStore.shouldScan) {
+            registerWifiReceiverIfNeeded()
             val settings = ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
             if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED) {
                 scanner?.startScan(null, settings, scanCallback)
@@ -1260,6 +1375,7 @@ class MainActivity : Activity() {
         sessionRunning = true
         BleStore.shouldScan = true
         BleStore.isListFrozen = false
+        registerWifiReceiverIfNeeded()
         if (isScannerActive) {
             BleStore.shouldScan = true
             syncSessionState()
@@ -1309,8 +1425,8 @@ class MainActivity : Activity() {
     }
 
     private fun hardStopScanner() {
-        if (!isScannerActive) return
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED) {
+        unregisterWifiReceiverIfNeeded()
+        if (isScannerActive && ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED) {
             scanner?.stopScan(scanCallback)
         }
         isScannerActive = false
@@ -1330,6 +1446,7 @@ class MainActivity : Activity() {
 
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
+            if (!BleStore.shouldScan || !sessionRunning) return
             val record = result.scanRecord
             val name = result.device.name ?: record?.deviceName ?: "Unknown"
             val addr = result.device.address ?: "Unknown"
@@ -1633,6 +1750,7 @@ class DeviceListAdapter(
         val item = getItem(position)
         val rowBg = if (position % 2 == 0) themedListRowColor(activity) else 0xFF050505.toInt()
         val classText = classifyDevice(item)
+        val isWhitelisted = isDeviceWhitelisted(activity, item.address)
 
         val isTracker = isTrackerClass(classText)
         val isCyber = isCyberGadgetClass(classText)
@@ -1646,11 +1764,13 @@ class DeviceListAdapter(
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
                 setColor(rowBg)
-                when {
-                    isTracker -> setStroke(dp(2), 0xFFFFFF00.toInt())
-                    isCyber   -> setStroke(dp(2), 0xFFFF8800.toInt())
-                    isDrone   -> setStroke(dp(2), 0xFF8A2BE2.toInt())          // solid violet
-                    isPolice  -> if (tick == 0) setStroke(dp(2), 0xFFFF0000.toInt()) else setStroke(dp(2), 0xFF0000FF.toInt())
+                if (!isWhitelisted) {
+                    when {
+                        isTracker -> setStroke(dp(2), 0xFFFFFF00.toInt())
+                        isCyber   -> setStroke(dp(2), 0xFFFF8800.toInt())
+                        isDrone   -> setStroke(dp(2), 0xFF8A2BE2.toInt())
+                        isPolice  -> if (tick == 0) setStroke(dp(2), 0xFFFF0000.toInt()) else setStroke(dp(2), 0xFF0000FF.toInt())
+                    }
                 }
             }
         }
@@ -1712,7 +1832,7 @@ class DeviceListAdapter(
             }
             typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
             textSize = 11f
-            setTextColor(if (isWhiteTheme(activity)) 0xFF000000.toInt() else 0xFFF2F2F2.toInt())
+            setTextColor(0xFFFFFFFF.toInt())
             setPadding(dp(10), dp(6), dp(10), dp(8))
             gravity = Gravity.CENTER_VERTICAL
             isSingleLine = true

@@ -19,6 +19,7 @@ class NotificationsActivity : Activity() {
     private lateinit var gadgetButton: Button
     private lateinit var droneButton: Button
     private lateinit var fedButton: Button
+    private lateinit var blacklistButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,16 +47,19 @@ class NotificationsActivity : Activity() {
         gadgetButton = buildButton("")
         droneButton = buildButton("")
         fedButton = buildButton("")
+        blacklistButton = buildButton("")
         trackerButton.setOnClickListener { showSoundMenu("sound_trackers", 3001) }
         gadgetButton.setOnClickListener { showSoundMenu("sound_gadgets", 3002) }
         droneButton.setOnClickListener { showSoundMenu("sound_drones", 3003) }
         fedButton.setOnClickListener { showSoundMenu("sound_feds", 3004) }
+        blacklistButton.setOnClickListener { showSoundMenu("sound_blacklist", 3005) }
 
         root.addView(title)
         root.addView(trackerButton)
         root.addView(gadgetButton)
         root.addView(droneButton)
         root.addView(fedButton)
+        root.addView(blacklistButton)
 
         setContentView(root)
         refresh()
@@ -108,6 +112,7 @@ class NotificationsActivity : Activity() {
             3002 -> save("sound_gadgets", picked)
             3003 -> save("sound_drones", picked)
             3004 -> save("sound_feds", picked)
+            3005 -> save("sound_blacklist", picked)
         }
         refresh()
     }
@@ -133,6 +138,7 @@ class NotificationsActivity : Activity() {
         gadgetButton.text = "GADGETS: " + labelFor("sound_gadgets")
         droneButton.text = "DRONES: " + labelFor("sound_drones")
         fedButton.text = "FEDS: " + labelFor("sound_feds")
+        blacklistButton.text = "BLACKLIST: " + labelFor("sound_blacklist")
     }
 
     private fun buildButton(label: String) = Button(this).apply {

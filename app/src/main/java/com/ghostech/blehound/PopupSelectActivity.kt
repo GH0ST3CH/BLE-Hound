@@ -14,6 +14,7 @@ class PopupSelectActivity : Activity() {
     private val popupButtons = linkedMapOf<String, Button>()
 
     private val popupItems = listOf(
+        "popup_blacklist" to "BLACKLIST",
         "popup_drone" to "DRONE",
         "popup_airtag" to "AIRTAG",
         "popup_tile" to "TILE",

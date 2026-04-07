@@ -63,5 +63,6 @@
         </activity>
 
             <service android:name=".BleMonitorService" android:exported="false" android:foregroundServiceType="connectedDevice" />
-    </application>
+        <activity android:name=".BlacklistWhitelistActivity" />
+</application>
 </manifest>

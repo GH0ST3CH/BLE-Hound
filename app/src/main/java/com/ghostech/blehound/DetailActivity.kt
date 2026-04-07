@@ -25,6 +25,8 @@ import java.util.UUID
 
 
 class DetailActivity : Activity() {
+    private lateinit var wlButton: Button
+    private lateinit var blButton: Button
     private val SPP_UUID =
         java.util.UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
 
@@ -47,14 +49,16 @@ class DetailActivity : Activity() {
 
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                runOnUiThread { gattView.text = "GATT CONNECTED - DISCOVERING SERVICES..." }
+                runOnUiThread { gattView.text = "GATT STATUS    : CONNECTED\nGATT ACTION    : DISCOVERING SERVICES..." }
                 
 gatt.requestMtu(517)
 gatt.discoverServices()
 
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                runOnUiThread { gattData += "\n[STATUS] GATT DISCONNECTED\n"
-                runOnUiThread { gattView.text = gattData } }
+                runOnUiThread {
+                    gattData += "\nGATT STATUS    : DISCONNECTED\n"
+                    gattView.text = gattData
+                }
                 bluetoothGatt?.close()
                 bluetoothGatt = null
             }
@@ -62,27 +66,29 @@ gatt.discoverServices()
 
         
         override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
-            gattData += "\nMTU NEGOTIATED: $mtu\n"
+            gattData += "\nGATT MTU       : $mtu\n"
         }
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
             val sb = StringBuilder()
-            sb.append("\n================ GATT PROFILE\n[STATUS] GATT DISCONNECTED ================\n\n")
+            sb.append("\nGATT STATUS    : CONNECTED\n")
+            sb.append("GATT SERVICES  : ${gatt.services.size}\n\n")
 
             for (service in gatt.services) {
                 val sUuid = service.uuid.toString()
                 val sName = uuidName(sUuid)
-                sb.append("\n------------------------------\n[SERVICE]\n")
-                sb.append("UUID        : ").append(sUuid).append("\n")
-                if (sName.isNotEmpty()) sb.append(" [").append(sName).append("]")
-                sb.append("\n")
+                sb.append("SERVICE UUID   : ").append(sUuid).append("\n")
+                if (sName.isNotEmpty()) {
+                    sb.append("SERVICE NAME   : ").append(sName).append("\n")
+                }
 
                 for (ch in service.characteristics) {
                     val cUuid = ch.uuid.toString()
                     val cName = uuidName(cUuid)
-                    sb.append("  ├─ CHARACTERISTIC\n")
-                    sb.append("     UUID        : ").append(cUuid).append("\n")
-                    if (cName.isNotEmpty()) sb.append(" [").append(cName).append("]")
+                    sb.append("CHAR UUID      : ").append(cUuid).append("\n")
+                    if (cName.isNotEmpty()) {
+                        sb.append("CHAR NAME      : ").append(cName).append("\n")
+                    }
 
                     if ((ch.properties and BluetoothGattCharacteristic.PROPERTY_READ) != 0) {
                         gatt.readCharacteristic(ch)
@@ -94,7 +100,7 @@ gatt.discoverServices()
                             desc.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
                             gatt.writeDescriptor(desc)
                         }
-                        sb.append(" [NOTIFY ENABLED]")
+                        sb.append("CHAR NOTIFY    : ENABLED\n")
                     }
 
                     for (desc in ch.descriptors) {
@@ -124,9 +130,9 @@ gatt.discoverServices()
             val pretty = bytesToPretty(descriptor.value)
             val dUuid = descriptor.uuid.toString()
             val dName = uuidName(dUuid)
-            gattData += "    DESC: " + dUuid +
-                (if (dName.isNotEmpty()) " [" + dName + "]" else "") +
-                " = " + pretty + "\n"
+            gattData += "DESC UUID      : " + dUuid + "\n"
+            if (dName.isNotEmpty()) gattData += "DESC NAME      : " + dName + "\n"
+            gattData += "DESC DATA      : " + pretty + "\n"
         }
 
         override fun onCharacteristicChanged(
@@ -134,7 +140,8 @@ gatt.discoverServices()
             characteristic: BluetoothGattCharacteristic
         ) {
             val pretty = bytesToPretty(characteristic.value)
-            gattData += "    NOTIFY: ${characteristic.uuid} = $pretty\n"
+            gattData += "NOTIFY UUID    : ${characteristic.uuid}\n"
+            gattData += "NOTIFY DATA    : $pretty\n"
 
             runOnUiThread {
                 gattView.text = gattData
@@ -149,9 +156,8 @@ gatt.discoverServices()
             val value = characteristic.value
             val pretty = bytesToPretty(value)
 
-            gattData += "     VALUE\n"
-            gattData += "       UUID  : ${characteristic.uuid}\n"
-            gattData += "       DATA  : $pretty\n"
+            gattData += "VALUE UUID     : ${characteristic.uuid}\n"
+            gattData += "VALUE DATA     : $pretty\n"
 
             runOnUiThread {
                 gattView.text = gattData
@@ -248,6 +254,25 @@ gatt.discoverServices()
         headerPanel.addView(rssiView)
         headerPanel.addView(summaryView)
         headerPanel.addView(saveButton)
+        wlButton = Button(this).apply {
+            text = "WHITELIST"
+            setOnClickListener {
+                cachedDevice?.let { toggleWhitelist(this@DetailActivity, it.address) }
+                render()
+            }
+        }
+
+        blButton = Button(this).apply {
+            text = "BLACKLIST"
+            setOnClickListener {
+                cachedDevice?.let { toggleBlacklist(this@DetailActivity, it.address) }
+                render()
+            }
+        }
+
+        headerPanel.addView(wlButton)
+        headerPanel.addView(blButton)
+
         headerPanel.addView(skimmerScanButton)
         val gattButton = Button(this).apply {
             text = "READ GATT"
@@ -541,6 +566,11 @@ gatt.discoverServices()
         rssiView.text = if (d.rssi != 0) "${d.rssi} dBm" else rssiView.text
         val deviceClass = classifyDevice(d)
         val description = getDeviceDescription(deviceClass)
+
+        val isWl = isDeviceWhitelisted(this@DetailActivity, d.address)
+        val isBl = isDeviceBlacklisted(this@DetailActivity, d.address)
+        wlButton.text = if (isWl) "REMOVE WHITELIST" else "WHITELIST"
+        blButton.text = if (isBl) "REMOVE BLACKLIST" else "BLACKLIST"
         val skimmerAssessment = if (deviceClass == "Card Skimmer") assessSkimmer(d) else null
 
         skimmerScanButton.visibility =
@@ -554,6 +584,12 @@ gatt.discoverServices()
             append("NAME           : ${d.name}\n")
             append("ADDRESS        : ${d.address}\n")
             append("CLASS          : ${deviceClass}\n")
+
+            if (isDeviceWhitelisted(this@DetailActivity, d.address)) {
+                append("STATUS         : WHITELISTED\n")
+            } else if (isDeviceBlacklisted(this@DetailActivity, d.address)) {
+                append("STATUS         : BLACKLISTED\n")
+            }
             if (flockAssessment != null) {
                 append("CONFIDENCE     : ${flockAssessment.confidence}\n")
                 append("REASON CODE    : ${flockAssessment.reasonCode}\n")

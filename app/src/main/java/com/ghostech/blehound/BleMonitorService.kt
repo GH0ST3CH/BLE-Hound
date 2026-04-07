@@ -140,9 +140,9 @@ class BleMonitorService : Service() {
         }
     }
 
-    private fun playPopupSoundForClass(cls: String) {
+    private fun playPopupSoundForClass(cls: String, isBlacklisted: Boolean) {
         val prefs = getSharedPreferences("blehound_prefs", MODE_PRIVATE)
-        val key = soundPrefKeyForClass(cls) ?: return
+        val key = if (isBlacklisted) "sound_blacklist" else (soundPrefKeyForClass(cls) ?: return)
         val raw = prefs.getString(key, "__DEFAULT__") ?: "__DEFAULT__"
 
         if (raw == "__DISABLED__" || raw == "__SILENT__") return
@@ -168,7 +168,7 @@ class BleMonitorService : Service() {
         } catch (_: Exception) {}
     }
 
-    private fun buildPopupNotification(cls: String, d: BleSeenDevice): Notification {
+    private fun buildPopupNotification(cls: String, d: BleSeenDevice, isBlacklisted: Boolean): Notification {
         val openIntent = Intent(this, MainActivity::class.java)
         val pi = PendingIntent.getActivity(
             this,
@@ -178,9 +178,10 @@ class BleMonitorService : Service() {
         )
 
         val nameText = if (d.name.isBlank()) "Unknown" else d.name
-        val line1 = "$cls nearby"
+        val line1 = if (isBlacklisted) "BLACKLISTED • $cls nearby" else "$cls nearby"
         val line2 = "RSSI ${d.rssi} dBm • ${d.address}"
-        val detail = "Name: $nameText\nMAC: ${d.address}\nRSSI: ${d.rssi} dBm\nMFG: ${d.manufacturerText}"
+        val statusLine = if (isBlacklisted) "STATUS: BLACKLISTED\n" else ""
+        val detail = statusLine + "Class: $cls\nName: $nameText\nMAC: ${d.address}\nRSSI: ${d.rssi} dBm\nMFG: ${d.manufacturerText}"
 
         return NotificationCompat.Builder(this, currentPopupChannelId())
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
@@ -201,7 +202,13 @@ class BleMonitorService : Service() {
 
         for (d in BleStore.devices.values.sortedByDescending { it.rssi }) {
             val cls = classifyDevice(d)
-            val prefKey = popupPrefKeyForClass(cls) ?: continue
+
+            val isBlacklisted = isDeviceBlacklisted(this, d.address)
+            val allowBlacklist = prefs.getBoolean("popup_blacklist", false)
+
+            if (isDeviceWhitelisted(this, d.address)) continue
+
+            val prefKey = if (isBlacklisted) "popup_blacklist" else (popupPrefKeyForClass(cls) ?: continue)
             if (!prefs.getBoolean(prefKey, false)) continue
 
             val key = "${cls}|${d.address}"
@@ -212,9 +219,9 @@ class BleMonitorService : Service() {
             val shouldUpdate = shouldPopup || prevRssi == null || abs(prevRssi - d.rssi) >= 3
             if (!shouldUpdate) continue
 
-            playPopupSoundForClass(cls)
+            playPopupSoundForClass(cls, isBlacklisted)
             vibratePopupIfEnabled()
-            nm.notify(popupIdFor(key), buildPopupNotification(cls, d))
+            nm.notify(popupIdFor(key), buildPopupNotification(cls, d, isBlacklisted))
             lastPopupAt[key] = now
             lastPopupRssi[key] = d.rssi
         }
