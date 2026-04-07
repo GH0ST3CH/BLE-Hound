@@ -317,6 +317,7 @@ Get the latest APK here:
 - GitHub: https://github.com/GH0ST3CH
   
 - Support: https://buymeacoffee.com/ghostech
+
 I spent/spend a great deal of time developing this app and provide it to the world without any paywalls. If you can afford the donation of a coffee via the link above, that would help me more than you might imagine. 
 
 ---
