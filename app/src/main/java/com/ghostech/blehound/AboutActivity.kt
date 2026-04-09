@@ -62,6 +62,17 @@ class AboutActivity : Activity() {
         ghButton.setOnClickListener { openUrl("https://github.com/GH0ST3CH") }
         content.addView(ghButton)
 
+        content.addView(sectionTitle("OFFENSIVE TOOLS"))
+        content.addView(bodyText("BLE offensive tools (Sour Apple, BLE Flood, Swift Pair) contributed by CK42X / nyanBEE"))
+
+        val ck42xButton = buildButton("OPEN CK42X")
+        ck42xButton.setOnClickListener { openUrl("https://ck42x.com") }
+        content.addView(ck42xButton)
+
+        val nyanbeeButton = buildButton("OPEN NYANBEE")
+        nyanbeeButton.setOnClickListener { openUrl("https://ck42x.com/nyanbee") }
+        content.addView(nyanbeeButton)
+
         content.addView(sectionTitle("CREDITS"))
         content.addView(bodyText("Inspired by HaleHound firmware and ESP Marauder firmware"))
 

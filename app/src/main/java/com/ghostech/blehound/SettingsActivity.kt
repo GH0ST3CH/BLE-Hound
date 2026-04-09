@@ -79,6 +79,12 @@ class SettingsActivity : Activity() {
         }
         content.addView(themeButton)
 
+        val offensiveButton = buildHellButton("OFFENSIVE TOOLS")
+        offensiveButton.setOnClickListener {
+            startActivity(Intent(this, OffensiveToolsActivity::class.java))
+        }
+        content.addView(offensiveButton)
+
         val aboutButton = buildHellButton("ABOUT")
         aboutButton.setOnClickListener {
             startActivity(Intent(this, AboutActivity::class.java))
