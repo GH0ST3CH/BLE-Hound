@@ -246,10 +246,7 @@ class OffensiveToolsActivity : Activity() {
                     val data = AdvertiseData.Builder()
                         .setIncludeDeviceName(false)
                         .setIncludeTxPowerLevel(false)
-                        .addServiceData(
-                            ParcelUuid(UUID.fromString("0000FD6F-0000-1000-8000-00805F9B34FB")),
-                            mfgData
-                        )
+                        .addManufacturerSpecificData(0x004C, mfgData)
                         .build()
 
                     val callback = createCallback()
@@ -347,10 +344,7 @@ class OffensiveToolsActivity : Activity() {
                     val data = AdvertiseData.Builder()
                         .setIncludeDeviceName(false)
                         .setIncludeTxPowerLevel(false)
-                        .addServiceData(
-                            ParcelUuid(UUID.fromString("0000FE2C-0000-1000-8000-00805F9B34FB")),
-                            mfgData
-                        )
+                        .addManufacturerSpecificData(0x0006, mfgData)
                         .build()
 
                     val callback = createCallback()
