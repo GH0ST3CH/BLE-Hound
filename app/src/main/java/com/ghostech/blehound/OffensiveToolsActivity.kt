@@ -243,12 +243,14 @@ class OffensiveToolsActivity : Activity() {
                         .setTimeout(0)
                         .build()
 
-                    val dataBuilder = AdvertiseData.Builder()
-                    dataBuilder.setIncludeDeviceName(false)
-                    dataBuilder.setIncludeTxPowerLevel(false)
-                    @Suppress("DEPRECATION")
-                    dataBuilder.addManufacturerSpecificData(76, mfgData) // 0x4C = Apple
-                    val data = dataBuilder.build()
+                    val data = AdvertiseData.Builder()
+                        .setIncludeDeviceName(false)
+                        .setIncludeTxPowerLevel(false)
+                        .addServiceData(
+                            ParcelUuid(UUID.fromString("0000FD6F-0000-1000-8000-00805F9B34FB")),
+                            mfgData
+                        )
+                        .build()
 
                     val callback = createCallback()
                     advertiser?.startAdvertising(settings, data, callback)
@@ -342,12 +344,14 @@ class OffensiveToolsActivity : Activity() {
                         .setTimeout(0)
                         .build()
 
-                    val dataBuilder = AdvertiseData.Builder()
-                    dataBuilder.setIncludeDeviceName(false)
-                    dataBuilder.setIncludeTxPowerLevel(false)
-                    @Suppress("DEPRECATION")
-                    dataBuilder.addManufacturerSpecificData(6, mfgData) // 0x06 = Microsoft
-                    val data = dataBuilder.build()
+                    val data = AdvertiseData.Builder()
+                        .setIncludeDeviceName(false)
+                        .setIncludeTxPowerLevel(false)
+                        .addServiceData(
+                            ParcelUuid(UUID.fromString("0000FE2C-0000-1000-8000-00805F9B34FB")),
+                            mfgData
+                        )
+                        .build()
 
                     val callback = createCallback()
                     advertiser?.startAdvertising(settings, data, callback)
